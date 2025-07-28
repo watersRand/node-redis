@@ -7,7 +7,7 @@ import LATENCY_RESET, { LATENCY_EVENTS } from './LATENCY_RESET';
 describe('LATENCY RESET - Simplified Test', function () {
     // Set a longer timeout for the entire test suite, including setup hooks
     // This is crucial for the Docker container to spin up and client to connect.
-    this.timeout(90000); // 90 seconds
+    this.timeout(30000); // 90 seconds
 
     // Integration test: Execute LATENCY RESET against a real Redis client
     // This test will:
@@ -58,7 +58,7 @@ describe('LATENCY RESET - Simplified Test', function () {
         ...GLOBAL.SERVERS.OPEN,
         clientOptions: {
             socket: {
-                connectTimeout: 60000 // Set client connection timeout to 60 seconds (60000ms)
+                connectTimeout: 300000 // Set client connection timeout to 60 seconds (60000ms)
             }
         }
     });
