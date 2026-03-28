@@ -1,0 +1,301 @@
+import { readFileSync } from "fs";
+import { createClient, RedisClientOptions } from "../../.."
+import { stub } from "sinon";
+import { ActionTrigger } from "@redis/test-utils/lib/fault-injector";
+import { DiagnosticsEvent } from "../../client/enterprise-maintenance-manager";
+import diagnostics_channel from "node:diagnostics_channel";
+import { setTimeout } from "timers/promises";
+import { RedisClusterType } from "../../cluster";
+
+type DatabaseEndpoint = {
+  addr: string[];
+  addr_type: string;
+  dns_name: string;
+  oss_cluster_api_preferred_endpoint_type: string;
+  oss_cluster_api_preferred_ip_type: string;
+  port: number;
+  proxy_policy: string;
+  uid: string;
+};
+
+type DatabaseConfig = {
+  bdb_id: number;
+  username: string;
+  password: string;
+  tls: boolean;
+  raw_endpoints: DatabaseEndpoint[];
+  endpoints: string[];
+};
+
+type DatabasesConfig = {
+  [databaseName: string]: DatabaseConfig;
+};
+
+type EnvConfig = {
+  redisEndpointsConfigPath: string;
+  faultInjectorUrl: string;
+};
+
+/**
+ * Reads environment variables required for the test scenario
+ * @returns Environment configuration object
+ * @throws Error if required environment variables are not set
+ */
+export function getEnvConfig(): EnvConfig {
+  if (!process.env.REDIS_ENDPOINTS_CONFIG_PATH) {
+    throw new Error(
+      "REDIS_ENDPOINTS_CONFIG_PATH environment variable must be set"
+    );
+  }
+
+  if (!process.env.RE_FAULT_INJECTOR_URL) {
+    throw new Error("RE_FAULT_INJECTOR_URL environment variable must be set");
+  }
+
+  return {
+    redisEndpointsConfigPath: process.env.REDIS_ENDPOINTS_CONFIG_PATH,
+    faultInjectorUrl: process.env.RE_FAULT_INJECTOR_URL,
+  };
+}
+
+/**
+ * Reads database configuration from a file
+ * @param filePath - The path to the database configuration file
+ * @returns Parsed database configuration object
+ * @throws Error if file doesn't exist or JSON is invalid
+ */
+export function getDatabaseConfigFromEnv(filePath: string): DatabasesConfig {
+  try {
+    const fileContent = readFileSync(filePath, "utf8");
+    return JSON.parse(fileContent) as DatabasesConfig;
+  } catch (error) {
+    throw new Error(`Failed to read or parse database config from ${filePath}`);
+  }
+}
+
+export interface RedisConnectionConfig {
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+  tls: boolean;
+  bdbId: number;
+}
+
+/**
+ * Gets Redis connection parameters for a specific database
+ * @param databasesConfig - The parsed database configuration object
+ * @param databaseName - Optional name of the database to retrieve (defaults to the first one)
+ * @returns Redis connection configuration with host, port, username, password, and tls
+ * @throws Error if the specified database is not found in the configuration
+ */
+export function getDatabaseConfig(
+  databasesConfig: DatabasesConfig,
+  databaseName = process.env.DATABASE_NAME
+): RedisConnectionConfig {
+  const dbConfig = databaseName
+    ? databasesConfig[databaseName]
+    : Object.values(databasesConfig)[0];
+
+  if (!dbConfig) {
+    throw new Error(
+      `Database ${databaseName ? databaseName : ""} not found in configuration`
+    );
+  }
+
+  const endpoint = dbConfig.raw_endpoints[0]; // Use the first endpoint
+
+  return {
+    host: endpoint.dns_name,
+    port: endpoint.port,
+    username: dbConfig.username,
+    password: dbConfig.password,
+    tls: dbConfig.tls,
+    bdbId: dbConfig.bdb_id,
+  };
+}
+
+/**
+ * Executes the provided function in a context where setImmediate is stubbed to not do anything.
+ * This blocks setImmediate callbacks from executing
+ *
+ * @param command - The command to execute
+ * @returns The error and duration of the command execution
+ */
+export async function blockCommand(command: () => Promise<unknown>) {
+  let error: any;
+
+  const start = performance.now();
+
+  let setImmediateStub: any;
+
+  try {
+    setImmediateStub = stub(global, "setImmediate");
+    setImmediateStub.callsFake(() => {
+      //Dont call the callback, effectively blocking execution
+    });
+    await command();
+  } catch (err: any) {
+    error = err;
+  } finally {
+    if (setImmediateStub) {
+      setImmediateStub.restore();
+    }
+  }
+
+  return {
+    error,
+    duration: performance.now() - start,
+  };
+}
+
+/**
+ * Creates a test client with the provided configuration, connects it and attaches an error handler listener
+ * @param clientConfig - The Redis connection configuration
+ * @param options - Optional client options
+ * @returns The created Redis client
+ */
+export async function createTestClient(
+  clientConfig: RedisConnectionConfig,
+  options: Partial<RedisClientOptions> = {}
+) {
+  const client = createClient({
+    socket: {
+      host: clientConfig.host,
+      port: clientConfig.port,
+      ...(clientConfig.tls === true ? { tls: true } : {}),
+    },
+    password: clientConfig.password,
+    username: clientConfig.username,
+    RESP: 3,
+    maintNotifications: "auto",
+    maintEndpointType: "auto",
+    ...options,
+  });
+
+  await client.connect();
+
+  return client;
+}
+
+export interface TriggerArrays {
+  addTriggers: ActionTrigger[];
+  removeTriggers: ActionTrigger[];
+  removeAddTriggers: ActionTrigger[];
+  slotShuffleTriggers: ActionTrigger[];
+}
+
+/**
+ * Filters trigger arrays based on command-line arguments.
+ * Supports --effect, --trigger, and --db/--database filters.
+ */
+export function filterTriggersByArgs(
+  addTriggers: ActionTrigger[],
+  removeTriggers: ActionTrigger[],
+  removeAddTriggers: ActionTrigger[],
+  slotShuffleTriggers: ActionTrigger[]
+): TriggerArrays {
+  const parseArg = (name: string): string | undefined => {
+    const prefix = `--${name}=`;
+    const arg = process.argv.find(a => a.startsWith(prefix));
+    return arg ? arg.slice(prefix.length) : undefined;
+  };
+
+  const effectFilter = parseArg('effect');
+  const triggerFilter = parseArg('trigger');
+  const dbFilter = parseArg('db') ?? parseArg('database');
+
+  // Filter by effect - only keep relevant trigger arrays
+  let result: TriggerArrays = { addTriggers, removeTriggers, removeAddTriggers, slotShuffleTriggers };
+  if (effectFilter) {
+    const empty: ActionTrigger[] = [];
+    result = {
+      addTriggers: effectFilter === 'add' ? addTriggers : empty,
+      removeTriggers: effectFilter === 'remove' ? removeTriggers : empty,
+      removeAddTriggers: effectFilter === 'remove-add' ? removeAddTriggers : empty,
+      slotShuffleTriggers: effectFilter === 'slot-shuffle' ? slotShuffleTriggers : empty,
+    };
+  }
+
+  // Filter triggers by name and db config
+  const filterTriggers = (triggers: ActionTrigger[]): ActionTrigger[] => {
+    return triggers
+      .filter(t => !triggerFilter || t.name === triggerFilter)
+      .map(t => ({
+        ...t,
+        requirements: dbFilter
+          ? t.requirements.filter(r => r.dbconfig.name.includes(dbFilter))
+          : t.requirements
+      }))
+      .filter(t => t.requirements.length > 0);
+  };
+
+  return {
+    addTriggers: filterTriggers(result.addTriggers),
+    removeTriggers: filterTriggers(result.removeTriggers),
+    removeAddTriggers: filterTriggers(result.removeAddTriggers),
+    slotShuffleTriggers: filterTriggers(result.slotShuffleTriggers),
+  };
+}
+
+
+/**
+ * Waits for SMIGRATING on all existing master connections, then opens one new
+ * standalone connection and checks if it also receives SMIGRATING.
+ *
+ * Assumptions/limitations:
+ * - Uses a fixed timeout; resolves false on timeout regardless of progress.
+ * - Assumes one connection per master (no replicas, no pubsub/sharded pubsub).
+ * - Assumes the new connection observes SMIGRATING within a small wait window.
+ */
+export function newConnectionReceivedSmigraging(cluster: RedisClusterType<{}, {}, {}, 3, {}>, timeout = 500) {
+  const mastersCount = cluster.masters.length;
+  let received = 0;
+  let settled = false;
+  let resolve: (value: boolean) => void;
+
+  const finish = (value: boolean) => {
+    if (settled) return;
+    settled = true;
+    diagnostics_channel.unsubscribe("redis.maintenance", onEvent);
+    resolve(value);
+  };
+
+  const onEvent = async (message: unknown) => {
+    const event = message as DiagnosticsEvent;
+    if (event.type !== "SMIGRATING") return;
+
+    received++;
+    if (received !== mastersCount) return;
+
+    const [host, port] = cluster.masters[0].address.split(":");
+    const username = cluster.masters[0].client?.options.username;
+    const password = cluster.masters[0].client?.options.password;
+    const client = createClient({
+      socket: { host, port: Number(port) },
+      username,
+      password,
+      RESP: 3,
+    });
+
+    try {
+      await client.connect();
+    } catch {
+      finish(false);
+      return;
+    }
+
+    await setTimeout(50);
+    await client.close().catch(() => {});
+    finish(received === mastersCount + 1);
+  };
+
+  const promise = new Promise<boolean>((res) => {
+    resolve = res;
+  });
+
+  diagnostics_channel.subscribe("redis.maintenance", onEvent);
+  setTimeout(timeout, () => finish(false));
+
+  return promise;
+}
