@@ -86,7 +86,6 @@ function attachNamespace(prototype: any, name: PropertyKey, fns: any) {
       const value = Object.create(fns);
       value._self = this;
       value._commandOptions = (this as any)._commandOptions ?? null;
-      Object.defineProperty(this, name, { value });
       return value;
     }
   });

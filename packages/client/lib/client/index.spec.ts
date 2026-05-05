@@ -699,8 +699,9 @@ describe('Client', () => {
       typeMapping: { [RESP_TYPES.BLOB_STRING]: Buffer }
     });
 
-    const bufferReply = await bufferProxy.module.echo('hi');
     const stringReply = await client.module.echo('hi');
+    const bufferReply = await bufferProxy.module.echo('hi');
+
 
     assert.ok((bufferReply as unknown) instanceof Buffer, 'Proxy failed to return Buffer.');
     assert.strictEqual(typeof stringReply, 'string', 'Original client was corrupted.');
