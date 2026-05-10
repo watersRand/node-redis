@@ -79,13 +79,30 @@ export function attachConfig<
 
   return Class;
 }
-
+const namespaceCache = new WeakMap<any, Map<PropertyKey, any>>();
 function attachNamespace(prototype: any, name: PropertyKey, fns: any) {
+
   Object.defineProperty(prototype, name, {
     get() {
-      const value = Object.create(fns);
-      value._self = this;
-      value._commandOptions = (this as any)._commandOptions ?? null;
+
+      let instanceCache = namespaceCache.get(this);
+      if (!instanceCache) {
+        instanceCache = new Map();
+        namespaceCache.set(this, instanceCache);
+      }
+
+      let value = instanceCache.get(name);
+      if (!value) {
+        value = Object.create(fns);
+        value._self = this;
+
+        Object.defineProperty(value, '_commandOptions', {
+          get() { return this._self._commandOptions ?? null; },
+          enumerable: true,
+          configurable: false
+        })
+        instanceCache.set(name, value);
+      }
       return value;
     }
   });

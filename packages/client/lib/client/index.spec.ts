@@ -690,7 +690,7 @@ describe('Client', () => {
   });
 
 
-  testUtils.testWithClient('Module TypeMapping Fix', async client => {
+  testUtils.testWithClient('proxies respect RedisClient command options', async client => {
 
     const TIMEOUT = 1234;
     (client as any)._commandOptions = { timeout: TIMEOUT };

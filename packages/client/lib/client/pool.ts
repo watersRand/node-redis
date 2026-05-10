@@ -96,8 +96,8 @@ type PoolWithCommands<
   RESP extends RespVersions,
   TYPE_MAPPING extends TypeMapping
 > = {
-  [P in keyof typeof NON_STICKY_COMMANDS]: CommandSignature<(typeof NON_STICKY_COMMANDS)[P], RESP, TYPE_MAPPING>;
-};
+    [P in keyof typeof NON_STICKY_COMMANDS]: CommandSignature<(typeof NON_STICKY_COMMANDS)[P], RESP, TYPE_MAPPING>;
+  };
 
 export type RedisClientPoolType<
   M extends RedisModules = {},
@@ -106,16 +106,19 @@ export type RedisClientPoolType<
   RESP extends RespVersions = 2,
   TYPE_MAPPING extends TypeMapping = {}
 > = (
-  RedisClientPool<M, F, S, RESP, TYPE_MAPPING> &
-  PoolWithCommands<RESP, TYPE_MAPPING> &
-  WithModules<M, RESP, TYPE_MAPPING> &
-  WithFunctions<F, RESP, TYPE_MAPPING> &
-  WithScripts<S, RESP, TYPE_MAPPING>
-);
+    RedisClientPool<M, F, S, RESP, TYPE_MAPPING> &
+    PoolWithCommands<RESP, TYPE_MAPPING> &
+    WithModules<M, RESP, TYPE_MAPPING> &
+    WithFunctions<F, RESP, TYPE_MAPPING> &
+    WithScripts<S, RESP, TYPE_MAPPING>
+  );
 
 type ProxyPool = RedisClientPoolType<any, any, any, any, any>;
 
-type NamespaceProxyPool = { _self: ProxyPool };
+type NamespaceProxyPool<TM extends TypeMapping = {}> = {
+  _self: ProxyPool;
+  _commandOptions?: CommandOptions<TM>
+};
 
 export class RedisClientPool<
   M extends RedisModules = {},
@@ -131,7 +134,7 @@ export class RedisClientPool<
       const parser = new BasicCommandParser();
       command.parseCommand(parser, ...args);
 
-      return this.execute(client => client._executeCommand(command, parser, this._commandOptions, transformReply))
+      return this._self.execute(client => client._executeCommand(command, parser, this._commandOptions, transformReply))
     };
   }
 
@@ -142,7 +145,7 @@ export class RedisClientPool<
       const parser = new BasicCommandParser();
       command.parseCommand(parser, ...args);
 
-      return this._self.execute(client => client._executeCommand(command, parser, this._self._commandOptions, transformReply))
+      return this._self.execute(client => client._executeCommand(command, parser, this._commandOptions, transformReply))
     };
   }
 
@@ -155,7 +158,8 @@ export class RedisClientPool<
       parser.push(...prefix);
       fn.parseCommand(parser, ...args);
 
-      return this._self.execute(client => client._executeCommand(fn, parser, this._self._commandOptions, transformReply))    };
+      return this._self.execute(client => client._executeCommand(fn, parser, this._commandOptions, transformReply))
+    };
   }
 
   static #createScriptCommand(script: RedisScript, resp: RespVersions) {
@@ -167,7 +171,7 @@ export class RedisClientPool<
       parser.pushVariadic(prefix);
       script.parseCommand(parser, ...args);
 
-      return this.execute(client => client._executeScript(script, parser, this._commandOptions, transformReply))
+      return this._self.execute(client => client._executeScript(script, parser, this._commandOptions, transformReply))
     };
   }
 
@@ -185,7 +189,7 @@ export class RedisClientPool<
   ) {
 
     let Pool = RedisClientPool.#SingleEntryCache.get(clientOptions);
-    if(!Pool) {
+    if (!Pool) {
       Pool = attachConfig({
         BaseClass: RedisClientPool,
         commands: NON_STICKY_COMMANDS,
@@ -309,7 +313,7 @@ export class RedisClientPool<
     super();
 
     const socketOpts = clientOptions?.socket as { host?: string; port?: number } | undefined;
-    
+
     this.#identity = {
       id: generateClientId(socketOpts?.host, socketOpts?.port, clientOptions?.database),
       role: ClientRole.POOL,
@@ -328,7 +332,7 @@ export class RedisClientPool<
       } else {
         const cscConfig = options.clientSideCache;
         this.#clientSideCache = clientOptions.clientSideCache = new BasicPooledClientSideCache(cscConfig);
-//        this.#clientSideCache = clientOptions.clientSideCache = new PooledNoRedirectClientSideCache(cscConfig);
+        //        this.#clientSideCache = clientOptions.clientSideCache = new PooledNoRedirectClientSideCache(cscConfig);
       }
     }
 
@@ -485,10 +489,10 @@ export class RedisClientPool<
     const result = fn(node.value);
     if (result instanceof Promise) {
       result
-      .then(resolve, reject)
-      .finally(() => {
-        this.#returnClient(node);
-      })
+        .then(resolve, reject)
+        .finally(() => {
+          this.#returnClient(node);
+        })
     } else {
       resolve(result);
       this.#returnClient(node);

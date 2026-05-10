@@ -4,6 +4,7 @@ import RedisCluster from '.';
 import { SQUARE_SCRIPT } from '../client/index.spec';
 import { RootNodesUnavailableError } from '../errors';
 import { spy } from 'sinon';
+import { RESP_TYPES } from '../RESP/decoder';
 import RedisClient from '../client';
 
 describe('Cluster', () => {
@@ -229,6 +230,50 @@ describe('Cluster', () => {
         minimizeConnections: true
       }
     });
+
+    testUtils.testWithCluster('proxies respect RedisCluster command options', async cluster => {
+
+      const CUSTOM_MAPPING = { [RESP_TYPES.BLOB_STRING]: Buffer };
+
+
+      (cluster as any)._commandOptions = { timeout: 5000 };
+
+
+      const bufferProxy = cluster.withTypeMapping(CUSTOM_MAPPING);
+
+      const baseModule = (cluster as any).module;
+      const proxyModule = (bufferProxy as any).module;
+
+
+      assert.equal(
+        proxyModule._commandOptions.timeout,
+        5000,
+        'Namespace proxy should inherit timeout from base cluster'
+      );
+
+
+      const stringReply = await baseModule.echo('hello');
+      assert.equal(typeof stringReply, 'string', 'Base module should return a string');
+
+      const bufferReply = await proxyModule.echo('hello');
+      assert.ok(
+        bufferReply instanceof Buffer,
+        'Proxied module command should return a Buffer'
+      );
+
+
+      assert.equal(
+        Object.prototype.hasOwnProperty.call(proxyModule._commandOptions, 'typeMapping'),
+        true,
+        'typeMapping should be an "own" property of the proxy options'
+      );
+      assert.equal(
+        Object.prototype.hasOwnProperty.call(proxyModule._commandOptions, 'timeout'),
+        false,
+        'timeout should be inherited, not copied'
+      );
+
+    }, GLOBAL.CLUSTERS.OPEN);
   });
 
   describe('PubSub', () => {

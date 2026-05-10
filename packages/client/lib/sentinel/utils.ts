@@ -5,7 +5,7 @@ import { functionArgumentsPrefix, getTransformReply, scriptArgumentsPrefix } fro
 import { NamespaceProxySentinel, NamespaceProxySentinelClient, NodeAddressMap, ProxySentinel, ProxySentinelClient, RedisNode } from './types';
 
 /* TODO: should use map interface, would need a transform reply probably? as resp2 is list form, which this depends on */
-export function parseNode(node: Record<string, string>): RedisNode | undefined{
+export function parseNode(node: Record<string, string>): RedisNode | undefined {
 
   if (node.flags.includes("s_down") || node.flags.includes("disconnected") || node.flags.includes("failover_in_progress")) {
     return undefined;
@@ -62,7 +62,7 @@ export function createFunctionCommand<T extends NamespaceProxySentinel | Namespa
 
     return this._self._execute(
       fn.IS_READ_ONLY,
-      client => client._executeCommand(fn, parser, this._self.commandOptions, transformReply)
+      client => client._executeCommand(fn, parser, this._commandOptions, transformReply)
     );
   }
 };
@@ -76,7 +76,7 @@ export function createModuleCommand<T extends NamespaceProxySentinel | Namespace
 
     return this._self._execute(
       command.IS_READ_ONLY,
-      client => client._executeCommand(command, parser, this._self.commandOptions, transformReply)
+      client => client._executeCommand(command, parser, this._commandOptions, transformReply)
     );
   }
 };

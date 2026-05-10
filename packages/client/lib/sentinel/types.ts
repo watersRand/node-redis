@@ -120,7 +120,7 @@ export interface SentinelCommander<
   S extends RedisScripts,
   RESP extends RespVersions,
   TYPE_MAPPING extends TypeMapping,
-  // POLICIES extends CommandPolicies
+// POLICIES extends CommandPolicies
 > extends CommanderConfig<M, F, S, RESP> {
   commandOptions?: CommandOptions<TYPE_MAPPING>;
 }
@@ -135,36 +135,36 @@ type WithCommands<
   RESP extends RespVersions,
   TYPE_MAPPING extends TypeMapping
 > = {
-  [P in keyof typeof NON_STICKY_COMMANDS]: CommandSignature<(typeof NON_STICKY_COMMANDS)[P], RESP, TYPE_MAPPING>;
-};
+    [P in keyof typeof NON_STICKY_COMMANDS]: CommandSignature<(typeof NON_STICKY_COMMANDS)[P], RESP, TYPE_MAPPING>;
+  };
 
 type WithModules<
   M extends RedisModules,
   RESP extends RespVersions,
   TYPE_MAPPING extends TypeMapping
 > = {
-  [P in keyof M]: {
-    [C in keyof M[P]]: CommandSignature<M[P][C], RESP, TYPE_MAPPING>;
+    [P in keyof M]: {
+      [C in keyof M[P]]: CommandSignature<M[P][C], RESP, TYPE_MAPPING>;
+    };
   };
-};
 
 type WithFunctions<
   F extends RedisFunctions,
   RESP extends RespVersions,
   TYPE_MAPPING extends TypeMapping
 > = {
-  [L in keyof F]: {
-    [C in keyof F[L]]: CommandSignature<F[L][C], RESP, TYPE_MAPPING>;
+    [L in keyof F]: {
+      [C in keyof F[L]]: CommandSignature<F[L][C], RESP, TYPE_MAPPING>;
+    };
   };
-};
 
 type WithScripts<
   S extends RedisScripts,
   RESP extends RespVersions,
   TYPE_MAPPING extends TypeMapping
 > = {
-  [P in keyof S]: CommandSignature<S[P], RESP, TYPE_MAPPING>;
-};
+    [P in keyof S]: CommandSignature<S[P], RESP, TYPE_MAPPING>;
+  };
 
 export type RedisSentinelClientType<
   M extends RedisModules = {},
@@ -173,12 +173,12 @@ export type RedisSentinelClientType<
   RESP extends RespVersions = 2,
   TYPE_MAPPING extends TypeMapping = {},
 > = (
-  RedisSentinelClient<M, F, S, RESP, TYPE_MAPPING> &
-  WithCommands<RESP, TYPE_MAPPING> &
-  WithModules<M, RESP, TYPE_MAPPING> &
-  WithFunctions<F, RESP, TYPE_MAPPING> &
-  WithScripts<S, RESP, TYPE_MAPPING>
-);
+    RedisSentinelClient<M, F, S, RESP, TYPE_MAPPING> &
+    WithCommands<RESP, TYPE_MAPPING> &
+    WithModules<M, RESP, TYPE_MAPPING> &
+    WithFunctions<F, RESP, TYPE_MAPPING> &
+    WithScripts<S, RESP, TYPE_MAPPING>
+  );
 
 export type RedisSentinelType<
   M extends RedisModules = {},
@@ -186,23 +186,29 @@ export type RedisSentinelType<
   S extends RedisScripts = {},
   RESP extends RespVersions = 2,
   TYPE_MAPPING extends TypeMapping = {},
-  // POLICIES extends CommandPolicies = {}
+// POLICIES extends CommandPolicies = {}
 > = (
-  RedisSentinel<M, F, S, RESP, TYPE_MAPPING> &
-  WithCommands<RESP, TYPE_MAPPING> &
-  WithModules<M, RESP, TYPE_MAPPING> &
-  WithFunctions<F, RESP, TYPE_MAPPING> &
-  WithScripts<S, RESP, TYPE_MAPPING>
-);
+    RedisSentinel<M, F, S, RESP, TYPE_MAPPING> &
+    WithCommands<RESP, TYPE_MAPPING> &
+    WithModules<M, RESP, TYPE_MAPPING> &
+    WithFunctions<F, RESP, TYPE_MAPPING> &
+    WithScripts<S, RESP, TYPE_MAPPING>
+  );
 
 export interface SentinelCommandOptions<
   TYPE_MAPPING extends TypeMapping = TypeMapping
-> extends CommandOptions<TYPE_MAPPING> {}
+> extends CommandOptions<TYPE_MAPPING> { }
 
 export type ProxySentinel = RedisSentinel<any, any, any, any, any>;
 export type ProxySentinelClient = RedisSentinelClient<any, any, any, any, any>;
-export type NamespaceProxySentinel = { _self: ProxySentinel };
-export type NamespaceProxySentinelClient = { _self: ProxySentinelClient };
+export type NamespaceProxySentinel = {
+  _self: ProxySentinel;
+  _commandOptions?: CommandOptions
+};
+export type NamespaceProxySentinelClient = {
+  _self: ProxySentinelClient;
+  _commandOptions?: CommandOptions;
+};
 
 export type NodeInfo = {
   ip: any,
@@ -211,7 +217,7 @@ export type NodeInfo = {
 };
 
 export type RedisSentinelEvent = NodeChangeEvent | SizeChangeEvent;
- 
+
 export type NodeChangeEvent = {
   type: "SENTINEL_CHANGE" | "MASTER_CHANGE" | "REPLICA_ADD" | "REPLICA_REMOVE";
   node: RedisNode;

@@ -1,5 +1,6 @@
 import { strict as assert } from 'node:assert';
 import testUtils, { GLOBAL } from '../test-utils';
+import { RESP_TYPES } from '../RESP/decoder';
 import { RedisClientPool } from './pool';
 
 describe('RedisClientPool', () => {
@@ -91,7 +92,7 @@ describe('RedisClientPool', () => {
     assert.equal(result2, 'task2');
   }, {
     ...GLOBAL.SERVERS.OPEN,
-    poolOptions: { minimum: 1, maximum: 1, acquireTimeout: 2000, cleanupDelay: 400  }
+    poolOptions: { minimum: 1, maximum: 1, acquireTimeout: 2000, cleanupDelay: 400 }
   });
 
   testUtils.testWithClientPool('execute rejects when pool is closing', async pool => {
@@ -230,4 +231,65 @@ describe('RedisClientPool', () => {
     },
     GLOBAL.SERVERS.OPEN
   );
+
+  testUtils.testWithClientPool('sendCommand respects proxy command options', async pool => {
+    const TIMEOUT = 1234;
+
+
+    (pool as any)._commandOptions = { timeout: TIMEOUT };
+
+
+    const bufferProxy = pool.withCommandOptions({
+      typeMapping: {
+        [RESP_TYPES.BLOB_STRING]: Buffer
+      }
+    });
+
+
+    const stringReply = await pool.sendCommand(['ECHO', 'hello']);
+    assert.equal(typeof stringReply, 'string', 'Base pool should return a string');
+
+
+    const bufferReply = await bufferProxy.sendCommand(['ECHO', 'hello']);
+    assert.ok(bufferReply instanceof Buffer, 'Proxy should return a Buffer');
+    assert.equal(bufferReply.toString(), 'hello');
+
+
+    const proxyOptions = (bufferProxy as any)._commandOptions;
+
+
+    assert.equal(
+      proxyOptions.timeout,
+      TIMEOUT,
+      'Proxy should inherit timeout from base pool'
+    );
+
+
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(proxyOptions, 'timeout'),
+      false,
+      'Timeout should be inherited via prototype chain, not copied'
+    );
+
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(proxyOptions, 'typeMapping'),
+      true,
+      'TypeMapping should be a direct property of the proxy options'
+    );
+  }, GLOBAL.SERVERS.OPEN);
+
+  testUtils.testWithClientPool('namespace proxy sees updated base options', async pool => {
+
+    const module = (pool as any).module;
+
+    assert.equal(module._commandOptions, null);
+
+    (pool as any)._commandOptions = { timeout: 5000 };
+
+    assert.equal(module._commandOptions.timeout, 5000);
+
+    (pool as any)._commandOptions = { timeout: 9999 };
+
+    assert.equal(module._commandOptions.timeout, 9999);
+  }, GLOBAL.SERVERS.OPEN);
 });
