@@ -46,7 +46,7 @@ export function createCommand<T extends ProxySentinel | ProxySentinelClient>(com
 
     return this._self._execute(
       command.IS_READ_ONLY,
-      client => client._executeCommand(command, parser, this.commandOptions, transformReply)
+      client => client._executeCommand(command, parser, this._commandOptions, transformReply)
     );
   };
 }
@@ -92,7 +92,7 @@ export function createScriptCommand<T extends ProxySentinel | ProxySentinelClien
 
     return this._self._execute(
       script.IS_READ_ONLY,
-      client => client._executeScript(script, parser, this.commandOptions, transformReply)
+      client => client._executeScript(script, parser, this._commandOptions, transformReply)
     );
   };
 }

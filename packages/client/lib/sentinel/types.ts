@@ -199,8 +199,12 @@ export interface SentinelCommandOptions<
   TYPE_MAPPING extends TypeMapping = TypeMapping
 > extends CommandOptions<TYPE_MAPPING> { }
 
-export type ProxySentinel = RedisSentinel<any, any, any, any, any>;
-export type ProxySentinelClient = RedisSentinelClient<any, any, any, any, any>;
+export type ProxySentinel = RedisSentinel<any, any, any, any, any> & {
+  _commandOptions?: SentinelCommandOptions;
+};
+export type ProxySentinelClient = RedisSentinelClient<any, any, any, any, any> & {
+  _commandOptions?: SentinelCommandOptions;
+};
 export type NamespaceProxySentinel = {
   _self: ProxySentinel;
   _commandOptions?: CommandOptions
