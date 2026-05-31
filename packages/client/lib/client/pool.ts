@@ -347,7 +347,10 @@ export class RedisClientPool<
     TYPE_MAPPING extends TypeMapping
   >(options: OPTIONS) {
     const proxy = Object.create(this._self);
-    proxy._commandOptions = options;
+    proxy._commandOptions = Object.assign(
+      Object.create(this._commandOptions ?? null),
+      options
+    );
     return proxy as RedisClientPoolType<
       M,
       F,

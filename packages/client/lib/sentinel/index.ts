@@ -62,6 +62,14 @@ export class RedisSentinelClient<
     return this._self.#commandOptions;
   }
 
+  /**
+ * Internal getter for command dispatch functions.
+ * @returns the effective command options of the proxy.
+ */
+  get _commandOptions(): CommandOptions<TYPE_MAPPING> | undefined {
+    return this.commandOptions;
+  }
+
   #commandOptions?: CommandOptions<TYPE_MAPPING>;
 
   constructor(
@@ -302,6 +310,15 @@ export default class RedisSentinel<
    */
   get identity(): ClientIdentity {
     return this._self.#identity;
+  }
+
+  /**
+ * @internal
+ * Internal getter for command dispatch functions.
+ * Returns the effective command options of the proxy.
+ */
+  get _commandOptions(): CommandOptions<TYPE_MAPPING> | undefined {
+    return this.commandOptions;
   }
 
   #commandOptions?: CommandOptions<TYPE_MAPPING>;
@@ -738,7 +755,7 @@ class RedisSentinelInternal<
     this.#scanInterval = options.scanInterval ?? 0;
     this.#passthroughClientErrorEvents = options.passthroughClientErrorEvents ?? false;
 
-    this.#nodeClientOptions = (options.nodeClientOptions ? {...options.nodeClientOptions} : {}) as RedisClientOptions<M, F, S, RESP, TYPE_MAPPING, RedisTcpSocketOptions>;
+    this.#nodeClientOptions = (options.nodeClientOptions ? { ...options.nodeClientOptions } : {}) as RedisClientOptions<M, F, S, RESP, TYPE_MAPPING, RedisTcpSocketOptions>;
     if (this.#nodeClientOptions.url !== undefined) {
       throw new Error("invalid nodeClientOptions for Sentinel");
     }
@@ -749,7 +766,7 @@ class RedisSentinelInternal<
       } else {
         const cscConfig = options.clientSideCache;
         this.#clientSideCache = this.#nodeClientOptions.clientSideCache = new BasicPooledClientSideCache(cscConfig);
-//        this.#clientSideCache = this.#nodeClientOptions.clientSideCache = new PooledNoRedirectClientSideCache(cscConfig);
+        //        this.#clientSideCache = this.#nodeClientOptions.clientSideCache = new PooledNoRedirectClientSideCache(cscConfig);
       }
     }
 
@@ -853,7 +870,7 @@ class RedisSentinelInternal<
     while (true) {
       this.#trace("starting connect loop");
 
-      count+=1;
+      count += 1;
       if (this.#destroy) {
         this.#trace("in #connect and want to destroy")
         return;
@@ -1002,10 +1019,10 @@ class RedisSentinelInternal<
 
   #handleSentinelFailure(node: RedisNode) {
     const found = this.#sentinelRootNodes.findIndex(
-        (rootNode) => rootNode.host === node.host && rootNode.port === node.port
+      (rootNode) => rootNode.host === node.host && rootNode.port === node.port
     );
     if (found !== -1) {
-        this.#sentinelRootNodes.splice(found, 1);
+      this.#sentinelRootNodes.splice(found, 1);
     }
     this.#restoreSentinelRootNodesIfEmpty();
     this.#reset();
